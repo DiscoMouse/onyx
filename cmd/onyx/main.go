@@ -14,12 +14,13 @@ import (
 	_ "github.com/corazawaf/coraza-caddy/v2"
 )
 
-// Set this via -ldflags during build, e.g.:
-// go build -ldflags "-X 'main.version=v1.0.0'"
-var version = "beta 0.1"
+// DEFAULT: "dev"
+// This will be overwritten by the build system (GitHub Actions)
+// using -ldflags "-X 'main.version=v1.0.0'"
+var version = "dev"
 
 func main() {
-	// Intercept the "version" command to print custom info
+	// Intercept the "version" command
 	if len(os.Args) > 1 && os.Args[1] == "version" {
 		fmt.Printf("Onyx Version:  %s\n", version)
 		fmt.Print("Caddy Version: ")
