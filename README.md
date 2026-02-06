@@ -26,6 +26,18 @@ This binary includes software developed by:
 - WAF management interfaces
 - Automated updates
 
+## Easy Install
+
+### Download the latest binary directly
+curl -L -o onyx "https://github.com/DiscoMouse/onyx/releases/latest/download/onyx"
+
+### Set permissions and move to path
+chmod +x onyx
+sudo mv onyx /usr/bin/onyx
+
+### Update capabilities
+sudo setcap cap_net_bind_service=+ep /usr/bin/onyx
+
 ## Building from Source
 
 ```bash
