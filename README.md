@@ -30,7 +30,7 @@ This binary includes software developed by:
 
 ```bash
 # 1. Clone the repo
-git clone [https://github.com/DiscoMouse/onyx.git](https://github.com/DiscoMouse/onyx.git)
+git clone https://github.com/DiscoMouse/onyx.git
 cd onyx
 
 # 2. Build
