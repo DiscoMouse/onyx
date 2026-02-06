@@ -42,14 +42,17 @@ info "Installing binary to $INSTALL_PATH..."
 mv "$BINARY_NAME" "$INSTALL_PATH"
 setcap cap_net_bind_service=+ep "$INSTALL_PATH"
 
-# 6. Service setup (if example file is present in current dir)
-if [ -f "onyx.service" ]; then
-    info "Setting up systemd service..."
-    cp onyx.service /etc/systemd/system/
-    systemctl daemon-reload
-    info "Service installed. You can start it with: systemctl enable --now onyx"
+# 6. Service setup
+SERVICE_URL="https://raw.githubusercontent.com/$REPO/main/onyx.service"
+
+if [ ! -f "onyx.service" ]; then
+    info "Service file not found locally. Downloading from GitHub..."
+    curl -sSL -o /etc/systemd/system/onyx.service "$SERVICE_URL"
 else
-    warn "onyx.service not found in current directory. Skipping service registration."
+    info "Using local onyx.service..."
+    cp onyx.service /etc/systemd/system/
 fi
 
+systemctl daemon-reload
 info "Installation complete! Run 'onyx version' to verify."
+info "Service registered. Run 'systemctl enable --now onyx' to start."
