@@ -29,15 +29,10 @@ This binary includes software developed by:
 ## Easy Install
 
 ```bash
-# 1. Download the latest binary directly
-curl -L -o onyx "https://github.com/DiscoMouse/onyx/releases/latest/download/onyx"
+# 1. Download and run the installer script.
+curl -sSL https://raw.githubusercontent.com/DiscoMouse/onyx/main/install.sh | sudo bash
+# 2. Follow the instructions
 
-# 2. Set permissions and move to path
-chmod +x onyx
-sudo mv onyx /usr/bin/onyx
-
-# 3. Update capabilities
-sudo setcap cap_net_bind_service=+ep /usr/bin/onyx
 ```
 ## Building from Source
 
