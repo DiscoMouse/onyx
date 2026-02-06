@@ -6,6 +6,16 @@ Requires firewalld
 
 Beta version not suitable for production environments.
 
+## License & Credits
+
+This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
+
+**Open Source Components:**
+This binary includes software developed by:
+* **Caddy Web Server** (Apache 2.0) - Copyright The Caddy Authors
+* **Coraza WAF** (Apache 2.0) - Copyright The Coraza Authors
+* **OVH DNS Module** (Apache 2.0)
+
 ## Features
 - **OVH DNS Integration:** Automatic HTTPS for internal/private servers using DNS challenges.
 - **Coraza WAF:** Web Application Firewall integration.
