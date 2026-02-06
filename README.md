@@ -1,4 +1,4 @@
-# Onyx Web Server
+# Onyx Reverse Proxy Daeom
 
 Onyx is a custom build of the Caddy Web Server, tailored for Rocky Linux 10 deployments as a reverse proxy with TLS termination. The beta includes pre-bundled support for **OVH DNS** and **Coraza WAF**.
 
