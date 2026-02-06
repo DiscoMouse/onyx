@@ -34,5 +34,5 @@ example.com {
     import tls_{$ONYX_ENV:dev}
 
     # The rest of your site config
-    reverse_proxy localhost:8080
+    reverse_proxy 10.0.80.80:8080
 }

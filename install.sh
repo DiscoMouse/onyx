@@ -31,9 +31,19 @@ else
     info "User 'onyx' already exists, skipping..."
 fi
 
-# 4. Directory permissions
+# 4. Directory permissions & Base Config
 info "Preparing directories..."
 mkdir -p "$CONFIG_DIR" "$LOG_DIR"
+
+# Provide a default Caddyfile if it doesn't exist
+if [ ! -f "$CONFIG_DIR/Caddyfile" ]; then
+    info "No Caddyfile found. Installing template..."
+    # Download your template directly to the config folder
+    curl -sSL -o "$CONFIG_DIR/Caddyfile" "https://raw.githubusercontent.com/$REPO/main/exampleCaddyfile"
+else
+    info "Existing Caddyfile detected. Skipping template install."
+fi
+
 chown -R root:onyx "$CONFIG_DIR"
 chown onyx:onyx "$LOG_DIR"
 
