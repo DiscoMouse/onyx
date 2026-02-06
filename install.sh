@@ -66,3 +66,4 @@ fi
 systemctl daemon-reload
 info "Installation complete! Run 'onyx version' to verify."
 info "Service registered. Run 'systemctl enable --now onyx' to start."
+info "Don't forget to edit $CONFIG_DIR/Caddyfile with your domain before starting!"
