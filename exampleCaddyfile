@@ -1,0 +1,38 @@
+{
+    # SECURITY: Lock the Admin API to the local loopback interface.
+    # This prevents external access to the control plane.
+    admin 127.0.0.1:2019 {
+        origins 127.0.0.1 localhost
+    }
+}
+
+# 1. Define the (Dev) mode
+# - Uses 'tls internal' which creates a local self-signed cert.
+# - No communication with Let's Encrypt or OVH DNS API.
+(tls_dev) {
+    tls internal
+}
+
+# 2. Define the production mode
+# - Uses real Let's Encrypt/ZeroSSL.
+# - Uses OVH DNS API for solving challenges.
+(tls_prod) {
+    tls {
+        dns ovh {
+            endpoint           {$OVH_ENDPOINT}
+            application_key    {$OVH_APPLICATION_KEY}
+            application_secret {$OVH_APPLICATION_SECRET}
+            consumer_key       {$OVH_CONSUMER_KEY}
+        }
+    }
+}
+
+# 3. Your Site Block
+example.com {
+    # Dynamically imports 'tls_dev' or 'tls_prod' based on env var.
+    # Defaults to 'dev' if the variable is missing.
+    import tls_{$ONYX_ENV:dev}
+
+    # The rest of your site config
+    reverse_proxy localhost:8080
+}

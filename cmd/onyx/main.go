@@ -1,6 +1,9 @@
 package main
 
 import (
+	"fmt"
+	"os"
+
 	caddycmd "github.com/caddyserver/caddy/v2/cmd"
 
 	// Standard Caddy modules
@@ -11,6 +14,16 @@ import (
 	_ "github.com/corazawaf/coraza-caddy/v2"
 )
 
+// Set this via -ldflags during build, e.g.:
+// go build -ldflags "-X 'main.version=v1.0.0'"
+var version = "beta 0.1"
+
 func main() {
+	// Intercept the "version" command to print custom info
+	if len(os.Args) > 1 && os.Args[1] == "version" {
+		fmt.Printf("Onyx Version:  %s\n", version)
+		fmt.Print("Caddy Version: ")
+	}
+
 	caddycmd.Main()
 }
