@@ -48,7 +48,7 @@ else
 fi
 
 # 5. Remove Configuration and Logs
-# FIX: Added the missing 'then' keyword here
+# We ask before nuking configs just in case the user wants to keep their Caddyfile
 read -p "[QUESTION] Do you want to delete all configuration and log files? (y/N): " confirm
 if [[ "$confirm" == [yY] ]]; then
     info "Nuking $CONFIG_DIR and $LOG_DIR..."
