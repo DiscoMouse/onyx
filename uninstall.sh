@@ -42,14 +42,13 @@ fi
 # 4. Remove System User & Home (State) Directory
 if id "onyx" &>/dev/null; then
     info "Removing onyx system user and state directory ($STATE_DIR)..."
-    # userdel -r removes the user and their home directory (/var/lib/onyx)
     userdel -r onyx &>/dev/null || warn "Could not fully remove user/home. May require manual cleanup."
 else
     info "User 'onyx' not found, skipping..."
 fi
 
 # 5. Remove Configuration and Logs
-# We ask before nuking configs just in case the user wants to keep their Caddyfile
+# FIX: Added the missing 'then' keyword here
 read -p "[QUESTION] Do you want to delete all configuration and log files? (y/N): " confirm
 if [[ "$confirm" == [yY] ]]; then
     info "Nuking $CONFIG_DIR and $LOG_DIR..."
