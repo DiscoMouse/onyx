@@ -33,18 +33,20 @@ fi
 
 # 4. Directory permissions & Base Config
 info "Preparing directories..."
-mkdir -p "$CONFIG_DIR" "$LOG_DIR"
+# ADDED: /var/lib/onyx/rules to support the WAF state checks
+mkdir -p "$CONFIG_DIR" "$LOG_DIR" "/var/lib/onyx/rules"
 
 # Provide a default Caddyfile if it doesn't exist
 if [ ! -f "$CONFIG_DIR/Caddyfile" ]; then
     info "No Caddyfile found. Installing template..."
-    # Download your template directly to the config folder
     curl -sSL -o "$CONFIG_DIR/Caddyfile" "https://raw.githubusercontent.com/$REPO/main/exampleCaddyfile"
 else
     info "Existing Caddyfile detected. Skipping template install."
 fi
 
+# Ensure permissions are correct for the state directory
 chown -R root:onyx "$CONFIG_DIR"
+chown -R onyx:onyx "/var/lib/onyx" # Added to cover the rules folder
 chown onyx:onyx "$LOG_DIR"
 
 # 5. Move binary and set capabilities
