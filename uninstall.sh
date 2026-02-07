@@ -48,16 +48,19 @@ else
 fi
 
 # 5. Remove Configuration and Logs
-# Redirecting read to /dev/tty ensures it doesn't eat the script when piped
 echo -n "[QUESTION] Do you want to delete all configuration and log files? (y/N): "
-read confirm < /dev/tty
+# Using -u 3 and redirecting from /dev/tty is the "nuclear option" for pipe safety
+read -r confirm < /dev/tty || confirm="n"
 
-if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ]; then
-    info "Nuking $CONFIG_DIR and $LOG_DIR..."
-    rm -rf "$CONFIG_DIR"
-    rm -rf "$LOG_DIR"
-else
-    warn "Keeping $CONFIG_DIR and $LOG_DIR."
-fi
+case "$confirm" in
+    [yY][eE][sS]|[yY])
+        info "Nuking $CONFIG_DIR and $LOG_DIR..."
+        rm -rf "$CONFIG_DIR"
+        rm -rf "$LOG_DIR"
+        ;;
+    *)
+        warn "Keeping $CONFIG_DIR and $LOG_DIR."
+        ;;
+esac
 
 info "Onyx has been successfully uninstalled."
