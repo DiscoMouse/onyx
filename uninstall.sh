@@ -48,9 +48,11 @@ else
 fi
 
 # 5. Remove Configuration and Logs
-# We ask before nuking configs just in case the user wants to keep their Caddyfile
-read -p "[QUESTION] Do you want to delete all configuration and log files? (y/N): " confirm
-if [[ "$confirm" == [yY] ]]; then
+# Redirecting read to /dev/tty ensures it doesn't eat the script when piped
+echo -n "[QUESTION] Do you want to delete all configuration and log files? (y/N): "
+read confirm < /dev/tty
+
+if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ]; then
     info "Nuking $CONFIG_DIR and $LOG_DIR..."
     rm -rf "$CONFIG_DIR"
     rm -rf "$LOG_DIR"
