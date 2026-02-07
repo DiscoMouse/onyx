@@ -2,7 +2,7 @@ package ui
 
 import (
 	"fmt"
-	"onyx/internal/state" // Import our new check package
+	"onyx/internal/state" // Ensure this matches module name in go.mod
 	"strings"
 	"time"
 
@@ -51,7 +51,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m model) View() string {
 	var s strings.Builder
 
-	// Lipgloss styles for "Tidy" feedback
+	// Lipgloss styles for rich text feedback
 	green := lipgloss.NewStyle().Foreground(lipgloss.Color("10"))
 	red := lipgloss.NewStyle().Foreground(lipgloss.Color("9"))
 
@@ -59,6 +59,7 @@ func (m model) View() string {
 	s.WriteString("  ──────────────────────────────────────\n\n")
 
 	// Dynamic status based on real state
+	s.WriteString("  SERVICE: " + renderStatus(m.system.ProxyActive, "RUNNING", "STOPPED", green, red) + "\n")
 	s.WriteString("  CONFIG:  " + renderStatus(m.system.ConfigValid, "VALID", "MISSING", green, red) + "\n")
 	s.WriteString("  WAF:     " + renderStatus(m.system.WAFRulesReady, "READY", "NO RULES", green, red) + "\n")
 	s.WriteString(fmt.Sprintf("  VOLUMES: [%d/3] Paths Detected\n", m.system.PathsFound))
