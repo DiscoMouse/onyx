@@ -1,6 +1,11 @@
 # --- Project Specific ---
-# Ignore the compiled binary
-onyx
+# Ignore the compiled binaries in the root
+/onyx
+/onyx-admin
+
+# But do NOT ignore the source code
+!cmd/onyx/
+!cmd/onyx-admin/
 
 # --- Standard Go Ignores ---
 *.exe
