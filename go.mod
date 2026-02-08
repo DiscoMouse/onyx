@@ -3,6 +3,7 @@ module onyx
 go 1.25.6
 
 require (
+	github.com/BurntSushi/toml v1.6.0
 	github.com/caddy-dns/ovh v1.1.0
 	github.com/caddyserver/caddy/v2 v2.10.2
 	github.com/charmbracelet/bubbletea v1.3.10
@@ -19,7 +20,6 @@ require (
 	dario.cat/mergo v1.0.1 // indirect
 	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/AndreasBriese/bbloom v0.0.0-20190825152654-46b345b51c96 // indirect
-	github.com/BurntSushi/toml v1.5.0 // indirect
 	github.com/KimMachineGun/automemlimit v0.7.4 // indirect
 	github.com/Masterminds/goutils v1.1.1 // indirect
 	github.com/Masterminds/semver/v3 v3.3.0 // indirect
