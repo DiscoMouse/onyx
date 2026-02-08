@@ -46,12 +46,6 @@ go build ./cmd/onyx
 ```
 ## Configuration
 
-To improve the clarity of the post-installation process for Onyx, the documentation should explicitly detail where configuration files reside, how the security model affects editing, and how to transition from development to production modes.
-
-### Recommended "Post-Install Configuration" Guide
-
-The following sections can be added to your `README.md` to clarify the setup process:
-
 #### 1. Configuration File Locations
 
 After installation, Onyx uses the following directory structure for configuration and state:
