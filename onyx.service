@@ -11,7 +11,7 @@ Type=notify
 User=onyx
 Group=onyx
 
-# PATHS - Updated to use the 'proxy' subcommand
+# Paths Executable now restricted to the onyx user via the onyx-admin group membership
 ExecStart=/usr/bin/onyx proxy run --environ --config /etc/onyx/Caddyfile
 ExecReload=/usr/bin/onyx proxy reload --config /etc/onyx/Caddyfile --force
 

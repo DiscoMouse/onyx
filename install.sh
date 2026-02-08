@@ -1,5 +1,5 @@
 #!/bin/bash
-# Onyx Installer - Secure & Functional
+# Onyx Installer - v0.1.5 Secure Functional Separation
 set -e
 
 REPO="DiscoMouse/onyx"
@@ -37,12 +37,17 @@ if ! getent group "$ADMIN_GROUP" &>/dev/null; then
     groupadd "$ADMIN_GROUP"
 fi
 
+# EXECUTION ACCESS: Add system user to admin group so the service can run the binary
+usermod -aG "$ADMIN_GROUP" onyx
+
+# ADMIN ACCESS: Human gets both execution (admin) and data (onyx) access
 if [ -n "$SUDO_USER" ]; then
-    info "Adding user '$SUDO_USER' to $ADMIN_GROUP..."
+    info "Provisioning human admin '$SUDO_USER'..."
     usermod -aG "$ADMIN_GROUP" "$SUDO_USER"
+    usermod -aG "onyx" "$SUDO_USER"
 fi
 
-# 4. Directory permissions & Base Config
+# 4. Directory permissions
 info "Preparing directories..."
 mkdir -p "$CONFIG_DIR" "$LOG_DIR" "/var/lib/onyx/rules"
 
@@ -56,7 +61,7 @@ chmod 750 "$CONFIG_DIR"
 chown -R onyx:onyx "/var/lib/onyx"
 chown onyx:onyx "$LOG_DIR"
 
-# 5. Move binary and set restricted permissions
+# 5. Binary lockdown
 info "Installing binary to $INSTALL_PATH..."
 mv "$BINARY_NAME" "$INSTALL_PATH"
 
@@ -70,18 +75,8 @@ curl -sSL -o /etc/systemd/system/onyx.service "$SERVICE_URL"
 
 systemctl daemon-reload
 
-# 7. Finalize & Session Check
+# 7. Finalize
 info "Installation complete!"
-
-# Logic to check if the current user actually has the group active yet
 if [ -n "$SUDO_USER" ]; then
-    if ! id -Gn "$SUDO_USER" | grep -qw "$ADMIN_GROUP"; then
-        warn "USER ACTION REQUIRED: To run '$BINARY_NAME' without sudo, you must refresh your group membership."
-        info "Please log out and back in, or run: exec su -l $SUDO_USER"
-    else
-        info "Group membership for '$SUDO_USER' is already active."
-    fi
+    warn "USER ACTION REQUIRED: Run 'exec su -l $SUDO_USER' to refresh your group permissions."
 fi
-
-info "Run 'onyx version' to verify."
-info "If upgrading, run: sudo systemctl restart onyx"

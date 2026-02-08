@@ -3,12 +3,12 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/user" // Added for user identification
 
 	"github.com/caddyserver/caddy/v2"
 	caddycmd "github.com/caddyserver/caddy/v2/cmd"
 	"github.com/spf13/cobra"
 
-	// 1. ADD THIS IMPORT (Make sure it matches your module name in go.mod)
 	"onyx/internal/ui"
 
 	_ "github.com/caddy-dns/ovh"
@@ -18,13 +18,21 @@ import (
 
 var version = "dev"
 
+// isRestrictedUser returns true if the current user is the system 'onyx' account
+func isRestrictedUser() bool {
+	u, err := user.Current()
+	if err != nil {
+		return true // Default to restricted if lookup fails
+	}
+	return u.Username == "onyx"
+}
+
 func main() {
 	var rootCmd = &cobra.Command{
 		Use:   "onyx",
 		Short: "Onyx: Virtual Infrastructure Orchestrator",
 	}
 
-	// 1. TOP LEVEL VERSION
 	rootCmd.AddCommand(&cobra.Command{
 		Use:   "version",
 		Short: "Print Onyx and dependency versions",
@@ -35,7 +43,6 @@ func main() {
 		},
 	})
 
-	// 2. PROXY COMMANDS (Passthrough)
 	var proxyCmd = &cobra.Command{
 		Use:                "proxy",
 		Short:              "Sub-commands for the underlying Caddy engine",
@@ -47,12 +54,16 @@ func main() {
 	}
 	rootCmd.AddCommand(proxyCmd)
 
-	// 3. STATUS (The TUI)
 	rootCmd.AddCommand(&cobra.Command{
 		Use:   "status",
 		Short: "Launch the interactive TUI dashboard",
 		Run: func(cmd *cobra.Command, args []string) {
-			// 2. REPLACE THE PRINTLN WITH THIS:
+			// Explicitly block the background system user from the TUI
+			if isRestrictedUser() {
+				fmt.Println("Error: Access Denied. The 'onyx' system user cannot access administrative tools.")
+				os.Exit(1)
+			}
+
 			if err := ui.StartTUI(version); err != nil {
 				fmt.Printf("Error starting TUI: %v\n", err)
 				os.Exit(1)
