@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"onyx/internal/config"
 	"onyx/internal/state"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -27,13 +28,15 @@ func tick() tea.Cmd {
 type model struct {
 	version string
 	system  state.SystemState
+	config  *config.Config
 }
 
-// InitialModel prepares the starting state for the TUI.
-func InitialModel(v string) model {
+// InitialModel prepares the starting state for the TUI, including loaded server configurations.
+func InitialModel(v string, cfg *config.Config) model {
 	return model{
 		version: v,
 		system:  state.CheckHeartbeat(),
+		config:  cfg,
 	}
 }
 
@@ -66,10 +69,16 @@ func (m model) View() string {
 	s.WriteString(fmt.Sprintf("  ONYX SECURITY ADMIN [%s]\n", m.version))
 	s.WriteString("  ──────────────────────────────────────────\n\n")
 
-	s.WriteString("  ENGINE:  " + renderStatus(m.system.ProxyActive, "RUNNING", "STOPPED", green, red) + "\n")
-	s.WriteString("  CONFIG:  " + renderStatus(m.system.ConfigValid, "VALID", "MISSING", green, red) + "\n")
-	s.WriteString("  WAF:     " + renderStatus(m.system.WAFRulesReady, "READY", "NOT DETECTED", green, red) + "\n")
-	s.WriteString(fmt.Sprintf("  VOLUMES: [%d/3] Paths Detected\n", m.system.PathsFound))
+	// Display local engine status
+	s.WriteString("  LOCAL ENGINE: " + renderStatus(m.system.ProxyActive, "RUNNING", "STOPPED", green, red) + "\n")
+	s.WriteString("  LOCAL CONFIG: " + renderStatus(m.system.ConfigValid, "VALID", "MISSING", green, red) + "\n")
+
+	// Display remote server count from TOML
+	remoteCount := 0
+	if m.config != nil {
+		remoteCount = len(m.config.Servers)
+	}
+	s.WriteString(fmt.Sprintf("  REMOTE NODES: [%d] Configured in TOML\n", remoteCount))
 
 	s.WriteString("\n  (Press 'q' to exit)\n")
 	return s.String()
@@ -83,9 +92,9 @@ func renderStatus(val bool, pos, neg string, g, r lipgloss.Style) string {
 	return r.Render(neg)
 }
 
-// StartTUI initializes and launches the main Bubble Tea program loop.
-func StartTUI(v string) error {
-	p := tea.NewProgram(InitialModel(v))
+// StartTUI initializes and launches the main Bubble Tea program loop with configuration data.
+func StartTUI(v string, cfg *config.Config) error {
+	p := tea.NewProgram(InitialModel(v, cfg))
 	_, err := p.Run()
 	return err
 }
