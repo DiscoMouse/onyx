@@ -32,7 +32,7 @@ Run this on your local Linux machine (Laptop/Workstation/VM). This installs only
 
 ```bash
 # 1. Download the admin binary
-curl -L -o onyx-admin "[https://github.com/DiscoMouse/onyx/releases/latest/download/onyx-admin](https://github.com/DiscoMouse/onyx/releases/latest/download/onyx-admin)"
+curl -L -o onyx-admin "https://github.com/DiscoMouse/onyx/releases/latest/download/onyx-admin"
 chmod +x onyx-admin
 
 # 2. Install to your path
