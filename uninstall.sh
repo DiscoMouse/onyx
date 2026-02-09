@@ -1,13 +1,16 @@
 #!/bin/bash
-# Onyx Uninstaller - Clean & Thorough
+# Onyx Uninstaller - v0.1.6
 set -e
 
 BINARY_NAME="onyx"
+ADMIN_BINARY_NAME="onyx-admin"
 INSTALL_PATH="/usr/bin/$BINARY_NAME"
+ADMIN_INSTALL_PATH="/usr/bin/$ADMIN_BINARY_NAME"
 CONFIG_DIR="/etc/onyx"
 LOG_DIR="/var/log/onyx"
 STATE_DIR="/var/lib/onyx"
 SERVICE_FILE="/etc/systemd/system/onyx.service"
+ADMIN_GROUP="onyx-admin"
 
 # Colours
 info() { echo -e "\033[1;34m[INFO]\033[0m $1"; }
@@ -19,7 +22,7 @@ if [ "$EUID" -ne 0 ]; then
     error "Please run as root (use sudo)."
 fi
 
-# 2. Stop and Disable Service
+# 2. Stop Service
 if systemctl is-active --quiet "$BINARY_NAME"; then
     info "Stopping Onyx service..."
     systemctl stop "$BINARY_NAME"
@@ -33,34 +36,39 @@ if [ -f "$SERVICE_FILE" ]; then
     systemctl reset-failed
 fi
 
-# 3. Remove Binary
+# 3. Remove Binaries
 if [ -f "$INSTALL_PATH" ]; then
-    info "Removing binary from $INSTALL_PATH..."
     rm "$INSTALL_PATH"
+    info "Removed engine binary."
+fi
+if [ -f "$ADMIN_INSTALL_PATH" ]; then
+    rm "$ADMIN_INSTALL_PATH"
+    info "Removed admin binary."
 fi
 
-# 4. Remove System User & Home (State) Directory
+# 4. Remove User and Groups
 if id "onyx" &>/dev/null; then
-    info "Removing onyx system user and state directory ($STATE_DIR)..."
-    userdel -r onyx &>/dev/null || warn "Could not fully remove user/home. May require manual cleanup."
-else
-    info "User 'onyx' not found, skipping..."
+    info "Removing onyx system user..."
+    userdel -r onyx &>/dev/null || warn "Manual cleanup needed for user onyx."
 fi
 
-# 5. Remove Configuration and Logs
+if getent group "$ADMIN_GROUP" &>/dev/null; then
+    info "Removing $ADMIN_GROUP group..."
+    groupdel "$ADMIN_GROUP"
+fi
+
+# 5. Remove Data (Nuclear Option)
 echo -n "[QUESTION] Do you want to delete all configuration and log files? (y/N): "
-# Using -u 3 and redirecting from /dev/tty is the "nuclear option" for pipe safety
 read -r confirm < /dev/tty || confirm="n"
 
 case "$confirm" in
     [yY][eE][sS]|[yY])
-        info "Nuking $CONFIG_DIR and $LOG_DIR..."
-        rm -rf "$CONFIG_DIR"
-        rm -rf "$LOG_DIR"
+        info "Removing config and logs..."
+        rm -rf "$CONFIG_DIR" "$LOG_DIR"
         ;;
     *)
         warn "Keeping $CONFIG_DIR and $LOG_DIR."
         ;;
 esac
 
-info "Onyx has been successfully uninstalled."
+info "Onyx uninstalled."
