@@ -3,42 +3,40 @@ name: Secure Release Build
 on:
   push:
     tags:
-      - 'v*' # Trigger on any tag starting with v (v0.1.0, v1.2.3, etc.)
+      - 'v*' 
 
 permissions:
-  contents: write # Needed to create releases
+  contents: write 
 
 jobs:
   build-and-release:
-    name: Build Onyx with Latest Go
+    name: Build Onyx Ecosystem
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # 1. Force the absolute latest Go version for security
       - name: Set up Go (Latest Stable)
         uses: actions/setup-go@v5
         with:
           go-version: 'stable'
           check-latest: true
 
-      # 2. Verify Version (Optional, for peace of mind in logs)
-      - name: Print Go Version
-        run: go version
-
-      # 3. Build the Binary
-      # - We enable CGO_ENABLED=0 for a static binary (runs on any Linux distro)
-      # - We inject the Git tag into the main.version variable
-      - name: Build Onyx
+      # Build both binaries using standard Go compiler
+      - name: Build Binaries
         env:
           CGO_ENABLED: 0
         run: |
+          # Build the Proxy Engine (This will be the 'fat' binary)
           go build -ldflags "-s -w -X 'main.version=${{ github.ref_name }}'" -o onyx ./cmd/onyx
+          
+          # Build the Admin Console
+          go build -ldflags "-s -w -X 'main.version=${{ github.ref_name }}'" -o onyx-admin ./cmd/onyx-admin
 
-      # 4. Create GitHub Release and Upload Binary
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
-          files: onyx
+          files: |
+            onyx
+            onyx-admin
           generate_release_notes: true

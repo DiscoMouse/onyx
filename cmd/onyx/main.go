@@ -7,6 +7,10 @@ import (
 	"log"
 	"os"
 
+	_ "github.com/caddy-dns/ovh"
+	_ "github.com/caddyserver/caddy/v2/modules/standard"
+	_ "github.com/corazawaf/coraza-caddy/v2"
+
 	"onyx/internal/engine"
 
 	"github.com/spf13/cobra"
