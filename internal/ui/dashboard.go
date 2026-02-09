@@ -28,11 +28,11 @@ func tick() tea.Cmd {
 type model struct {
 	version string
 	system  state.SystemState
-	config  *config.Config
+	config  *config.AdminConfig // Updated from config.Config
 }
 
 // InitialModel prepares the starting state for the TUI, including loaded server configurations.
-func InitialModel(v string, cfg *config.Config) model {
+func InitialModel(v string, cfg *config.AdminConfig) model { // Updated from config.Config
 	return model{
 		version: v,
 		system:  state.CheckHeartbeat(),
@@ -93,7 +93,7 @@ func renderStatus(val bool, pos, neg string, g, r lipgloss.Style) string {
 }
 
 // StartTUI initializes and launches the main Bubble Tea program loop with configuration data.
-func StartTUI(v string, cfg *config.Config) error {
+func StartTUI(v string, cfg *config.AdminConfig) error { // Updated from config.Config
 	p := tea.NewProgram(InitialModel(v, cfg))
 	_, err := p.Run()
 	return err

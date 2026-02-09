@@ -1,38 +1,60 @@
-// Package config handles the parsing and validation of the Onyx configuration files.
-// It supports TOML as the primary configuration format for the administration console.
+// Package config handles the loading and persistence of Onyx configurations.
 package config
 
 import (
-	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/BurntSushi/toml"
 )
 
-// Server defines the connection and authentication details for a remote Onyx engine.
-type Server struct {
-	Address string `toml:"address"`
-	Port    int    `toml:"port"`
-	Cert    string `toml:"cert"`
-	Key     string `toml:"key"`
+// AdminConfig represents the client-side configuration (servers.toml).
+type AdminConfig struct {
+	Servers []ServerEntry `toml:"servers"`
 }
 
-// Config represents the root structure of the servers.toml file, containing a map of server aliases.
-type Config struct {
-	Servers map[string]Server `toml:"servers"`
+// ServerEntry defines a single remote Onyx engine.
+type ServerEntry struct {
+	Name string `toml:"name"`
+	IP   string `toml:"ip"`
+	Port int    `toml:"port"`
 }
 
-// LoadConfig reads a TOML file from the specified path and decodes it into a Config struct.
-// It returns an error if the file is missing or contains invalid TOML syntax.
-func LoadConfig(path string) (*Config, error) {
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return nil, fmt.Errorf("config file not found: %s", path)
-	}
-
-	var conf Config
+// LoadConfig reads the TOML configuration from the specified path.
+func LoadConfig(path string) (*AdminConfig, error) {
+	var conf AdminConfig
 	if _, err := toml.DecodeFile(path, &conf); err != nil {
-		return nil, fmt.Errorf("failed to decode toml: %w", err)
+		return nil, err
+	}
+	return &conf, nil
+}
+
+// SaveConfig writes the current configuration back to disk.
+func (c *AdminConfig) SaveConfig(path string) error {
+	// Ensure the directory exists before writing
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		return err
 	}
 
-	return &conf, nil
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	return toml.NewEncoder(f).Encode(c)
+}
+
+// AddServer appends a new server to the config if it doesn't already exist.
+func (c *AdminConfig) AddServer(name, ip string, port int) {
+	for _, s := range c.Servers {
+		if s.IP == ip {
+			return // Server already exists
+		}
+	}
+	c.Servers = append(c.Servers, ServerEntry{
+		Name: name,
+		IP:   ip,
+		Port: port,
+	})
 }
