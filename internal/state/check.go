@@ -3,6 +3,7 @@
 package state
 
 import (
+	"net/http"
 	"os"
 	"os/exec"
 	"strings"
@@ -14,12 +15,15 @@ type SystemState struct {
 	WAFRulesReady bool
 	ConfigValid   bool
 	PathsFound    int
+	RemoteStatus  map[string]string // IP -> "Online" or "Offline"
 }
 
 // CheckHeartbeat runs a diagnostic check on the system to verify the
-// environment and the status of the Onyx service.
-func CheckHeartbeat() SystemState {
-	s := SystemState{}
+// environment and the status of the Onyx service, including remote nodes.
+func CheckHeartbeat(client *http.Client, remoteIPs []string) SystemState {
+	s := SystemState{
+		RemoteStatus: make(map[string]string),
+	}
 
 	// 1. Verify if the Caddyfile configuration exists
 	if _, err := os.Stat("/etc/onyx/Caddyfile"); err == nil {
@@ -43,6 +47,20 @@ func CheckHeartbeat() SystemState {
 	for _, p := range paths {
 		if _, err := os.Stat(p); err == nil {
 			s.PathsFound++
+		}
+	}
+
+	// 5. NEW: Remote mTLS Probing
+	if client != nil {
+		for _, ip := range remoteIPs {
+			// We probe the management port (2305) over mTLS
+			resp, err := client.Get("https://" + ip + ":2305/status")
+			if err != nil {
+				s.RemoteStatus[ip] = "Offline"
+				continue
+			}
+			s.RemoteStatus[ip] = "Online"
+			resp.Body.Close()
 		}
 	}
 

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"onyx/internal/config"
+	"onyx/internal/crypto" // Added for mTLS client
 	"onyx/internal/state"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -28,14 +29,24 @@ func tick() tea.Cmd {
 type model struct {
 	version string
 	system  state.SystemState
-	config  *config.AdminConfig // Updated from config.Config
+	config  *config.AdminConfig
 }
 
 // InitialModel prepares the starting state for the TUI, including loaded server configurations.
-func InitialModel(v string, cfg *config.AdminConfig) model { // Updated from config.Config
+func InitialModel(v string, cfg *config.AdminConfig) model {
+	// Create the mTLS client for the initial check
+	client, _ := crypto.NewMTLSClient()
+
+	var ips []string
+	if cfg != nil {
+		for _, s := range cfg.Servers {
+			ips = append(ips, s.IP)
+		}
+	}
+
 	return model{
 		version: v,
-		system:  state.CheckHeartbeat(),
+		system:  state.CheckHeartbeat(client, ips),
 		config:  cfg,
 	}
 }
@@ -53,7 +64,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 	case tickMsg:
-		m.system = state.CheckHeartbeat()
+		// On every tick, we refresh our view of the remote nodes
+		client, _ := crypto.NewMTLSClient()
+		var ips []string
+		if m.config != nil {
+			for _, s := range m.config.Servers {
+				ips = append(ips, s.IP)
+			}
+		}
+
+		m.system = state.CheckHeartbeat(client, ips)
 		return m, tick()
 	}
 	return m, nil
@@ -65,6 +85,7 @@ func (m model) View() string {
 
 	green := lipgloss.NewStyle().Foreground(lipgloss.Color("10"))
 	red := lipgloss.NewStyle().Foreground(lipgloss.Color("9"))
+	gray := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
 
 	s.WriteString(fmt.Sprintf("  ONYX SECURITY ADMIN [%s]\n", m.version))
 	s.WriteString("  ──────────────────────────────────────────\n\n")
@@ -73,12 +94,18 @@ func (m model) View() string {
 	s.WriteString("  LOCAL ENGINE: " + renderStatus(m.system.ProxyActive, "RUNNING", "STOPPED", green, red) + "\n")
 	s.WriteString("  LOCAL CONFIG: " + renderStatus(m.system.ConfigValid, "VALID", "MISSING", green, red) + "\n")
 
-	// Display remote server count from TOML
-	remoteCount := 0
-	if m.config != nil {
-		remoteCount = len(m.config.Servers)
+	s.WriteString("\n  REMOTE NODES:\n")
+	if len(m.system.RemoteStatus) == 0 {
+		s.WriteString("  " + gray.Render("No nodes paired yet.") + "\n")
+	} else {
+		for ip, status := range m.system.RemoteStatus {
+			statusStyle := red
+			if status == "Online" {
+				statusStyle = green
+			}
+			s.WriteString(fmt.Sprintf("  • %-15s [%s]\n", ip, statusStyle.Render(status)))
+		}
 	}
-	s.WriteString(fmt.Sprintf("  REMOTE NODES: [%d] Configured in TOML\n", remoteCount))
 
 	s.WriteString("\n  (Press 'q' to exit)\n")
 	return s.String()
@@ -93,7 +120,7 @@ func renderStatus(val bool, pos, neg string, g, r lipgloss.Style) string {
 }
 
 // StartTUI initializes and launches the main Bubble Tea program loop with configuration data.
-func StartTUI(v string, cfg *config.AdminConfig) error { // Updated from config.Config
+func StartTUI(v string, cfg *config.AdminConfig) error {
 	p := tea.NewProgram(InitialModel(v, cfg))
 	_, err := p.Run()
 	return err
