@@ -21,8 +21,16 @@ type ServerEntry struct {
 }
 
 // LoadConfig reads the TOML configuration from the specified path.
+// If the configuration file does not exist, it returns an empty AdminConfig
+// and a nil error to support zero-config initialization.
 func LoadConfig(path string) (*AdminConfig, error) {
 	var conf AdminConfig
+
+	// Check if the file exists before attempting to decode it.
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return &conf, nil
+	}
+
 	if _, err := toml.DecodeFile(path, &conf); err != nil {
 		return nil, err
 	}
@@ -30,8 +38,8 @@ func LoadConfig(path string) (*AdminConfig, error) {
 }
 
 // SaveConfig writes the current configuration back to disk.
+// It ensures that the parent directory exists before creating the file.
 func (c *AdminConfig) SaveConfig(path string) error {
-	// Ensure the directory exists before writing
 	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		return err
 	}
@@ -45,11 +53,11 @@ func (c *AdminConfig) SaveConfig(path string) error {
 	return toml.NewEncoder(f).Encode(c)
 }
 
-// AddServer appends a new server to the config if it doesn't already exist.
+// AddServer appends a new server to the config if the IP is not already present.
 func (c *AdminConfig) AddServer(name, ip string, port int) {
 	for _, s := range c.Servers {
 		if s.IP == ip {
-			return // Server already exists
+			return
 		}
 	}
 	c.Servers = append(c.Servers, ServerEntry{

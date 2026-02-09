@@ -15,7 +15,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var version = "v0.1.6"
+var version = "dev" // Default for local builds without tags
 
 var rootCmd = &cobra.Command{
 	Use:   "onyx-admin",
@@ -31,7 +31,7 @@ var statusCmd = &cobra.Command{
 
 		conf, err := config.LoadConfig(configPath)
 		if err != nil {
-			fmt.Printf("Note: Running in local mode (%v)\n", err)
+			fmt.Printf("Error loading configuration: %v\n", err)
 		}
 
 		if err := ui.StartTUI(version, conf); err != nil {
@@ -54,16 +54,16 @@ var pairCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		// 1. Setup local certs directory
 		home, _ := os.UserHomeDir()
-		certDir := filepath.Join(home, ".config", "onyx", "certs")
+		baseDir := filepath.Join(home, ".config", "onyx")
+		certDir := filepath.Join(baseDir, "certs")
+		configPath := filepath.Join(baseDir, "servers.toml")
+
 		os.MkdirAll(certDir, 0700)
 
 		keyPath := filepath.Join(certDir, "client.key")
 		certPath := filepath.Join(certDir, "client.crt")
 
-		// 2. Generate raw Ed25519 keys
-		// We use ed25519.GenerateKey to get the concrete types needed for CSR signing
 		fmt.Println("Checking local identity...")
 		_, priv, err := ed25519.GenerateKey(rand.Reader)
 		if err != nil {
@@ -71,7 +71,6 @@ var pairCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		// Encode private key to PEM for storage
 		privPEM, err := crypto.EncodePrivateKey(priv)
 		if err != nil {
 			fmt.Printf("Failed to encode private key: %v\n", err)
@@ -83,7 +82,6 @@ var pairCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		// 3. Create CSR using the Private Key (priv)
 		hostname, _ := os.Hostname()
 		commonName := fmt.Sprintf("admin@%s", hostname)
 
@@ -93,7 +91,6 @@ var pairCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		// 4. Perform Handshake
 		fmt.Printf("Initiating secure pairing with %s...\n", targetIP)
 		signedCert, err := crypto.PerformHandshake(targetIP, token, csrPEM)
 		if err != nil {
@@ -101,10 +98,20 @@ var pairCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		// 5. Save the signed certificate
 		if err := os.WriteFile(certPath, signedCert, 0644); err != nil {
 			fmt.Printf("Failed to save certificate: %v\n", err)
 			os.Exit(1)
+		}
+
+		// Persist the server details to the configuration file.
+		conf, err := config.LoadConfig(configPath)
+		if err != nil {
+			fmt.Printf("Warning: Failed to load config for update: %v\n", err)
+		} else {
+			conf.AddServer("Remote Engine", targetIP, 2305)
+			if err := conf.SaveConfig(configPath); err != nil {
+				fmt.Printf("Warning: Failed to persist server config: %v\n", err)
+			}
 		}
 
 		fmt.Println("[✓] Pairing complete! Your device is now authorized.")

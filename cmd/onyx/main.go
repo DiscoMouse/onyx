@@ -17,6 +17,7 @@ import (
 )
 
 var pairMode bool
+var version = "dev" // Default for local builds without tags
 
 var rootCmd = &cobra.Command{
 	Use:   "onyx",
