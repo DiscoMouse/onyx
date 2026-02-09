@@ -5,13 +5,18 @@ package engine
 import (
 	"bufio"
 	"context"
+	"crypto/ed25519"
 	"crypto/rand"
 	"fmt"
+	"io"
 	"math/big"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
+
+	"onyx/internal/crypto"
 )
 
 // GeneratePairingToken creates a high-entropy, human-readable 8-character token.
@@ -29,9 +34,15 @@ func GeneratePairingToken() (string, error) {
 }
 
 // StartPairingMode opens a 5-minute window for a new admin to pair.
-// It will shut down immediately upon success or prompt to retry on timeout.
 func StartPairingMode(token string) {
 	reader := bufio.NewReader(os.Stdin)
+
+	// Generate a temporary CA key for this pairing session
+	_, caPriv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		fmt.Printf("Critical error: failed to generate session key: %v\n", err)
+		return
+	}
 
 	for {
 		fmt.Printf("\n[PAIRING MODE ACTIVE]\n")
@@ -39,15 +50,49 @@ func StartPairingMode(token string) {
 		fmt.Printf("Port:  2305\n")
 		fmt.Printf("Window: 5 Minutes\n\n")
 
-		// resultChan allows the HTTP handler to tell the main loop we're done.
 		resultChan := make(chan bool)
 		pairingCtx, pairingCancel := context.WithTimeout(context.Background(), 5*time.Minute)
 
 		mux := http.NewServeMux()
 		mux.HandleFunc("/pair", func(w http.ResponseWriter, r *http.Request) {
-			// TODO: Verify token and sign CSR
-			fmt.Println("\n[+] Pairing successful! Finalizing...")
-			w.WriteHeader(http.StatusOK)
+			// 1. Verify the Token
+			if r.Header.Get("X-Onyx-Token") != token {
+				http.Error(w, "Invalid pairing token", http.StatusUnauthorized)
+				return
+			}
+
+			// 2. Read the CSR from the body
+			csrBytes, err := io.ReadAll(r.Body)
+			if err != nil {
+				http.Error(w, "Failed to read CSR", http.StatusBadRequest)
+				return
+			}
+
+			// 3. Sign the CSR
+			certPEM, err := crypto.SignCSR(csrBytes, caPriv)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("Signing failed: %v", err), http.StatusInternalServerError)
+				return
+			}
+
+			// 4. Extract identity and save the "Public Key" (the cert) for future mTLS
+			cert, _ := crypto.ParseCertificate(certPEM)
+			clientID := cert.Subject.CommonName
+
+			// Ensure the auth directory exists
+			authDir := "/var/lib/onyx/auth/clients/"
+			os.MkdirAll(authDir, 0755)
+
+			certPath := filepath.Join(authDir, fmt.Sprintf("%s.crt", clientID))
+			if err := os.WriteFile(certPath, certPEM, 0644); err != nil {
+				http.Error(w, "Failed to persist authorization", http.StatusInternalServerError)
+				return
+			}
+
+			// 5. Send the signed cert back to the client
+			w.Header().Set("Content-Type", "application/x-pem-file")
+			w.Write(certPEM)
+
 			resultChan <- true
 		})
 
@@ -62,17 +107,14 @@ func StartPairingMode(token string) {
 		success := false
 		select {
 		case <-resultChan:
-			fmt.Println("[✓] Device paired successfully.")
+			fmt.Println("[✓] Device paired successfully. Certificate saved.")
 			success = true
 		case <-pairingCtx.Done():
 			fmt.Println("\n[!] Pairing window expired.")
 		}
 
-		// Shutdown the server gracefully with a short 2-second deadline
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 2*time.Second)
 		srv.Shutdown(shutdownCtx)
-
-		// CRITICAL: Call cancel functions to release resources/timers immediately
 		shutdownCancel()
 		pairingCancel()
 
