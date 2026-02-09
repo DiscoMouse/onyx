@@ -19,9 +19,7 @@ Onyx now operates as a dual-binary system. The **Engine** runs on your server, w
 
 ## Getting Started
 
-### 1. Installation
-
-#### A. Server Installation (The Engine)
+### 1. Server Installation (The Engine)
 Run this on your **Rocky Linux 10 VPS**. This automated script installs the `onyx` engine, sets up the systemd service, and provisions the necessary users and security groups.
 
 ```bash
