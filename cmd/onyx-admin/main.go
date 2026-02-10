@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"onyx/internal/config"
@@ -37,12 +38,11 @@ var rootCmd = &cobra.Command{
 			targetIP := args[0]
 			port, _ := cmd.Flags().GetInt("port")
 
-			// Check if this node is already known (to get its name/stats)
+			// Check if this node is already known
 			var targetNode *config.Node
 			for i := range conf.Nodes {
 				if conf.Nodes[i].Address == targetIP {
 					targetNode = &conf.Nodes[i]
-					// If the user provided a port flag, override the saved port
 					if cmd.Flags().Changed("port") {
 						targetNode.Port = port
 					}
@@ -61,7 +61,6 @@ var rootCmd = &cobra.Command{
 				}
 			}
 
-			// Launch directly into Dashboard
 			if err := ui.StartDashboard(version, targetNode); err != nil {
 				fmt.Printf("Error: %v\n", err)
 				os.Exit(1)
@@ -71,6 +70,9 @@ var rootCmd = &cobra.Command{
 
 		// 3. Interactive Menu Mode (Default)
 		for {
+			// Reload config on every loop so new pairings show up immediately
+			conf, _ = config.LoadConfig(configPath)
+
 			action, node := ui.StartMenu(version, conf)
 
 			switch action {
@@ -79,21 +81,42 @@ var rootCmd = &cobra.Command{
 				return
 
 			case ui.ActionConnect:
-				// Launch Dashboard
 				if err := ui.StartDashboard(version, node); err != nil {
 					fmt.Printf("Dashboard Error: %v\n", err)
-					// Pause so user can see error before returning to menu
 					time.Sleep(2 * time.Second)
 				}
-				// Loop continues back to menu after dashboard exits
 
 			case ui.ActionPair:
-				// Ideally, we would launch a TUI form here.
-				// For now, guide the user to the CLI command.
-				fmt.Println("\nTo pair a new engine, please run:")
-				fmt.Println("  onyx-admin pair <ip-address> --token <token>")
-				fmt.Println("\n(Press Enter to return to menu)")
-				fmt.Scanln()
+				// Launch the TUI Form
+				result, submitted := ui.StartPairingForm()
+				if !submitted {
+					continue // User cancelled, go back to menu
+				}
+
+				// Convert port string to int
+				portInt, err := strconv.Atoi(result.Port)
+				if err != nil {
+					fmt.Printf("\nError: Invalid port number '%s'\n", result.Port)
+					time.Sleep(2 * time.Second)
+					continue
+				}
+
+				// Use default port if 0 or empty (though form usually catches this)
+				if portInt == 0 {
+					portInt = 2305
+				}
+
+				// Run the pairing logic
+				fmt.Println("\nConnecting to engine...")
+				if err := performPairing(result.Address, portInt, result.Token); err != nil {
+					fmt.Printf("\nPairing Failed: %v\n", err)
+					fmt.Println("(Press Enter to return to menu)")
+					fmt.Scanln()
+				} else {
+					// Success! Loop will reload config and show the new node.
+					fmt.Println("\nSuccess! Returning to menu...")
+					time.Sleep(1 * time.Second)
+				}
 			}
 		}
 	},
@@ -109,104 +132,99 @@ var pairCmd = &cobra.Command{
 		port, _ := cmd.Flags().GetInt("port")
 
 		if token == "" {
-			fmt.Println("Error: A pairing --token is required. Check server logs.")
+			fmt.Println("Error: A pairing --token is required.")
 			os.Exit(1)
 		}
 
-		// 1. Setup local paths
-		home, _ := os.UserHomeDir()
-		baseDir := filepath.Join(home, ".config", "onyx")
-		certDir := filepath.Join(baseDir, "certs")
-		configPath := filepath.Join(baseDir, "config.toml")
-
-		if err := os.MkdirAll(certDir, 0700); err != nil {
-			fmt.Printf("Failed to create config directory: %v\n", err)
+		if err := performPairing(targetIP, port, token); err != nil {
+			fmt.Printf("Error: %v\n", err)
 			os.Exit(1)
 		}
-
-		keyPath := filepath.Join(certDir, "client.key")
-		certPath := filepath.Join(certDir, "client.crt")
-
-		// 2. Generate or load local identity
-		// Check if key already exists to avoid overwriting identity
-		var priv ed25519.PrivateKey
-		if _, err := os.Stat(keyPath); os.IsNotExist(err) {
-			fmt.Println("Generating new local identity...")
-			_, newPriv, err := ed25519.GenerateKey(rand.Reader)
-			if err != nil {
-				fmt.Printf("Failed to generate identity: %v\n", err)
-				os.Exit(1)
-			}
-			priv = newPriv
-
-			privPEM, err := crypto.EncodePrivateKey(priv)
-			if err != nil {
-				fmt.Printf("Failed to encode private key: %v\n", err)
-				os.Exit(1)
-			}
-
-			if err := crypto.SavePEM(keyPath, privPEM); err != nil {
-				fmt.Printf("Failed to save private key: %v\n", err)
-				os.Exit(1)
-			}
-		} else {
-			fmt.Println("Loading existing identity...")
-			loadedPriv, err := crypto.LoadPrivateKey(keyPath)
-			if err != nil {
-				fmt.Printf("Failed to load private key: %v\n", err)
-				os.Exit(1)
-			}
-			priv = loadedPriv
-		}
-
-		// 3. Create CSR
-		hostname, _ := os.Hostname()
-		commonName := fmt.Sprintf("admin@%s", hostname)
-
-		csrPEM, err := crypto.GenerateCSR(priv, commonName)
-		if err != nil {
-			fmt.Printf("Failed to create CSR: %v\n", err)
-			os.Exit(1)
-		}
-
-		// 4. Perform Handshake
-		fmt.Printf("Initiating secure pairing with %s:%d...\n", targetIP, port)
-
-		// Construct the full address (IP:Port)
-		targetAddr := fmt.Sprintf("%s:%d", targetIP, port)
-
-		// PASS targetAddr INSTEAD OF targetIP
-		signedCert, err := crypto.PerformHandshake(targetAddr, token, csrPEM)
-		if err != nil {
-			fmt.Printf("Handshake failed: %v\n", err)
-			os.Exit(1)
-		}
-
-		// 5. Save the signed certificate
-		if err := os.WriteFile(certPath, signedCert, 0644); err != nil {
-			fmt.Printf("Failed to save certificate: %v\n", err)
-			os.Exit(1)
-		}
-
-		// 6. PERSISTENCE: Save the server to config.toml
-		conf, err := config.LoadConfig(configPath)
-		if err != nil {
-			fmt.Printf("Warning: Failed to load config for update: %v\n", err)
-			// Proceed with empty config if load fails
-			conf = &config.AdminConfig{}
-		}
-
-		// AddNode handles duplication checks automatically
-		conf.AddNode("Onyx Engine", targetIP, port)
-
-		if err := conf.SaveConfig(configPath); err != nil {
-			fmt.Printf("Warning: Failed to save server to config: %v\n", err)
-		}
-
-		fmt.Println("[✓] Pairing complete! Your device is now authorized.")
-		fmt.Printf("Identity saved to: %s\n", certDir)
-		fmt.Printf("Server added to: %s\n", configPath)
 	},
+}
+
+// performPairing handles the core identity generation, handshake, and config persistence.
+// This is used by both the CLI 'pair' command and the TUI Form.
+func performPairing(targetIP string, port int, token string) error {
+	// 1. Setup local paths
+	home, _ := os.UserHomeDir()
+	baseDir := filepath.Join(home, ".config", "onyx")
+	certDir := filepath.Join(baseDir, "certs")
+	configPath := filepath.Join(baseDir, "config.toml")
+
+	if err := os.MkdirAll(certDir, 0700); err != nil {
+		return fmt.Errorf("failed to create config directory: %w", err)
+	}
+
+	keyPath := filepath.Join(certDir, "client.key")
+	certPath := filepath.Join(certDir, "client.crt")
+
+	// 2. Generate or load local identity
+	var priv ed25519.PrivateKey
+	if _, err := os.Stat(keyPath); os.IsNotExist(err) {
+		fmt.Println("Generating new local identity...")
+		_, newPriv, err := ed25519.GenerateKey(rand.Reader)
+		if err != nil {
+			return fmt.Errorf("failed to generate identity: %w", err)
+		}
+		priv = newPriv
+
+		privPEM, err := crypto.EncodePrivateKey(priv)
+		if err != nil {
+			return fmt.Errorf("failed to encode private key: %w", err)
+		}
+
+		if err := crypto.SavePEM(keyPath, privPEM); err != nil {
+			return fmt.Errorf("failed to save private key: %w", err)
+		}
+	} else {
+		fmt.Println("Loading existing identity...")
+		loadedPriv, err := crypto.LoadPrivateKey(keyPath)
+		if err != nil {
+			return fmt.Errorf("failed to load private key: %w", err)
+		}
+		priv = loadedPriv
+	}
+
+	// 3. Create CSR
+	hostname, _ := os.Hostname()
+	commonName := fmt.Sprintf("admin@%s", hostname)
+
+	csrPEM, err := crypto.GenerateCSR(priv, commonName)
+	if err != nil {
+		return fmt.Errorf("failed to create CSR: %w", err)
+	}
+
+	// 4. Perform Handshake
+	targetAddr := fmt.Sprintf("%s:%d", targetIP, port)
+	fmt.Printf("Initiating secure handshake with %s...\n", targetAddr)
+
+	signedCert, err := crypto.PerformHandshake(targetAddr, token, csrPEM)
+	if err != nil {
+		return fmt.Errorf("handshake failed: %w", err)
+	}
+
+	// 5. Save the signed certificate
+	if err := os.WriteFile(certPath, signedCert, 0644); err != nil {
+		return fmt.Errorf("failed to save certificate: %w", err)
+	}
+
+	// 6. PERSISTENCE: Save the server to config.toml
+	conf, err := config.LoadConfig(configPath)
+	if err != nil {
+		fmt.Printf("Warning: Failed to load config for update: %v\n", err)
+		conf = &config.AdminConfig{}
+	}
+
+	// AddNode handles duplication checks automatically
+	conf.AddNode("Onyx Engine", targetIP, port)
+
+	if err := conf.SaveConfig(configPath); err != nil {
+		return fmt.Errorf("failed to save server to config: %w", err)
+	}
+
+	fmt.Println("[✓] Pairing complete! Identity authorized.")
+	return nil
 }
 
 func main() {
