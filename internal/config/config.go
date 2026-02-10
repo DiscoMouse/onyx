@@ -4,41 +4,56 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/BurntSushi/toml"
 )
 
-// AdminConfig represents the client-side configuration (servers.toml).
+// AdminConfig represents the root configuration for the onyx-admin tool.
 type AdminConfig struct {
-	Servers []ServerEntry `toml:"servers"`
+	Settings GlobalSettings `toml:"settings"`
+	Nodes    []Node         `toml:"nodes"`
 }
 
-// ServerEntry defines a single remote Onyx engine.
-type ServerEntry struct {
-	Name string `toml:"name"`
-	IP   string `toml:"ip"`
-	Port int    `toml:"port"`
+// GlobalSettings controls local application behavior.
+type GlobalSettings struct {
+	DefaultPort int    `toml:"default_port"`
+	Theme       string `toml:"theme"`
+}
+
+// Node represents a paired Onyx engine.
+type Node struct {
+	Name     string    `toml:"name"`
+	Address  string    `toml:"address"` // IP or Hostname
+	Port     int       `toml:"port"`
+	AddedAt  time.Time `toml:"added_at"`
+	LastSeen time.Time `toml:"last_seen"`
 }
 
 // LoadConfig reads the TOML configuration from the specified path.
-// If the configuration file does not exist, it returns an empty AdminConfig
-// and a nil error to support zero-config initialization.
+// If the file is missing, it returns a default configuration suitable for a fresh start.
 func LoadConfig(path string) (*AdminConfig, error) {
-	var conf AdminConfig
+	// Default state
+	conf := &AdminConfig{
+		Settings: GlobalSettings{
+			DefaultPort: 2305,
+			Theme:       "default",
+		},
+		Nodes: []Node{},
+	}
 
-	// Check if the file exists before attempting to decode it.
+	// Check if file exists
 	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return &conf, nil
+		return conf, nil
 	}
 
 	if _, err := toml.DecodeFile(path, &conf); err != nil {
 		return nil, err
 	}
-	return &conf, nil
+	return conf, nil
 }
 
 // SaveConfig writes the current configuration back to disk.
-// It ensures that the parent directory exists before creating the file.
 func (c *AdminConfig) SaveConfig(path string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		return err
@@ -53,16 +68,23 @@ func (c *AdminConfig) SaveConfig(path string) error {
 	return toml.NewEncoder(f).Encode(c)
 }
 
-// AddServer appends a new server to the config if the IP is not already present.
-func (c *AdminConfig) AddServer(name, ip string, port int) {
-	for _, s := range c.Servers {
-		if s.IP == ip {
+// AddNode safely appends or updates a node in the configuration.
+func (c *AdminConfig) AddNode(name, address string, port int) {
+	// Check for existing node to update
+	for i, n := range c.Nodes {
+		if n.Address == address && n.Port == port {
+			c.Nodes[i].LastSeen = time.Now()
+			c.Nodes[i].Name = name // Update name if changed
 			return
 		}
 	}
-	c.Servers = append(c.Servers, ServerEntry{
-		Name: name,
-		IP:   ip,
-		Port: port,
+
+	// Append new node
+	c.Nodes = append(c.Nodes, Node{
+		Name:     name,
+		Address:  address,
+		Port:     port,
+		AddedAt:  time.Now(),
+		LastSeen: time.Now(),
 	})
 }
