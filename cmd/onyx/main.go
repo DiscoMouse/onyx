@@ -31,7 +31,7 @@ access to internal services using Mutual TLS (mTLS).`,
 		}
 
 		// Normal engine startup would go here
-		fmt.Println("Onyx Engine starting in proxy mode...")
+		fmt.Println("Onyx Engine starting")
 	},
 }
 
