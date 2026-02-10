@@ -1,127 +1,89 @@
-// Package ui implements the terminal user interface for the Onyx Security Appliance.
-// It uses the Bubble Tea framework to provide a real-time monitoring dashboard.
 package ui
 
 import (
 	"fmt"
-	"strings"
-	"time"
-
 	"onyx/internal/config"
-	"onyx/internal/crypto" // Added for mTLS client
-	"onyx/internal/state"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
-// tickMsg is an internal signal used to trigger periodic UI refreshes.
-type tickMsg time.Time
+var (
+	titleStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("#FAFAFA")).
+			Background(lipgloss.Color("#7D56F4")).
+			PaddingLeft(2).
+			PaddingRight(2).
+			MarginBottom(1)
 
-// tick creates a command that sends a tickMsg every second.
-func tick() tea.Cmd {
-	return tea.Tick(time.Second, func(t time.Time) tea.Msg {
-		return tickMsg(t)
-	})
-}
+	subTitleStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#A0A0A0")).
+			MarginBottom(1)
 
-// model maintains the internal state of the administration dashboard.
-type model struct {
+	statusStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("#04B575"))
+
+	offlineStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("#FF0000"))
+)
+
+type dashboardModel struct {
 	version string
-	system  state.SystemState
-	config  *config.AdminConfig
+	node    *config.Node
 }
 
-// InitialModel prepares the starting state for the TUI, including loaded server configurations.
-func InitialModel(v string, cfg *config.AdminConfig) model {
-	// Create the mTLS client for the initial check
-	client, _ := crypto.NewMTLSClient()
-
-	var ips []string
-	if cfg != nil {
-		for _, s := range cfg.Servers {
-			ips = append(ips, s.IP)
-		}
-	}
-
-	return model{
-		version: v,
-		system:  state.CheckHeartbeat(client, ips),
-		config:  cfg,
-	}
+// Init is called when the Bubble Tea program starts.
+func (m dashboardModel) Init() tea.Cmd {
+	return nil
 }
 
-// Init defines the initial command for the TUI program.
-func (m model) Init() tea.Cmd {
-	return tick()
-}
-
-// Update processes incoming messages and updates the model's state.
-func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+// Update handles incoming messages (like keypresses).
+func (m dashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		if msg.String() == "q" || msg.String() == "ctrl+c" {
+		switch msg.String() {
+		case "q", "ctrl+c", "esc":
 			return m, tea.Quit
 		}
-	case tickMsg:
-		// On every tick, we refresh our view of the remote nodes
-		client, _ := crypto.NewMTLSClient()
-		var ips []string
-		if m.config != nil {
-			for _, s := range m.config.Servers {
-				ips = append(ips, s.IP)
-			}
-		}
-
-		m.system = state.CheckHeartbeat(client, ips)
-		return m, tick()
 	}
 	return m, nil
 }
 
-// View renders the current state of the dashboard into a string for terminal display.
-func (m model) View() string {
-	var s strings.Builder
+// View renders the UI based on the current state.
+func (m dashboardModel) View() string {
+	var b strings.Builder
 
-	green := lipgloss.NewStyle().Foreground(lipgloss.Color("10"))
-	red := lipgloss.NewStyle().Foreground(lipgloss.Color("9"))
-	gray := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+	b.WriteString("\n")
+	b.WriteString(titleStyle.Render(fmt.Sprintf(" ONYX SECURITY ADMIN [%s] ", m.version)))
+	b.WriteString("\n")
 
-	s.WriteString(fmt.Sprintf("  ONYX SECURITY ADMIN [%s]\n", m.version))
-	s.WriteString("  ──────────────────────────────────────────\n\n")
+	b.WriteString(fmt.Sprintf("  TARGET NODE: %s\n", m.node.Name))
+	b.WriteString(fmt.Sprintf("  ADDRESS:     %s:%d\n", m.node.Address, m.node.Port))
+	b.WriteString(subTitleStyle.Render("  ──────────────────────────────────────────"))
+	b.WriteString("\n")
 
-	// Display local engine status
-	s.WriteString("  LOCAL ENGINE: " + renderStatus(m.system.ProxyActive, "RUNNING", "STOPPED", green, red) + "\n")
-	s.WriteString("  LOCAL CONFIG: " + renderStatus(m.system.ConfigValid, "VALID", "MISSING", green, red) + "\n")
+	// Placeholder for the actual API fetch we'll build next
+	b.WriteString(fmt.Sprintf("  STATUS:      %s\n", offlineStyle.Render("[Offline - Awaiting /status endpoint implementation]")))
 
-	s.WriteString("\n  REMOTE NODES:\n")
-	if len(m.system.RemoteStatus) == 0 {
-		s.WriteString("  " + gray.Render("No nodes paired yet.") + "\n")
-	} else {
-		for ip, status := range m.system.RemoteStatus {
-			statusStyle := red
-			if status == "Online" {
-				statusStyle = green
-			}
-			s.WriteString(fmt.Sprintf("  • %-15s [%s]\n", ip, statusStyle.Render(status)))
-		}
-	}
+	b.WriteString("\n\n  (Press 'q' or 'esc' to return to menu)\n")
 
-	s.WriteString("\n  (Press 'q' to exit)\n")
-	return s.String()
+	return b.String()
 }
 
-// renderStatus applies color and text based on a boolean condition.
-func renderStatus(val bool, pos, neg string, g, r lipgloss.Style) string {
-	if val {
-		return g.Render(pos)
+// StartDashboard launches the single-node status view.
+func StartDashboard(version string, node *config.Node) error {
+	m := dashboardModel{
+		version: version,
+		node:    node,
 	}
-	return r.Render(neg)
-}
 
-// StartTUI initializes and launches the main Bubble Tea program loop with configuration data.
-func StartTUI(v string, cfg *config.AdminConfig) error {
-	p := tea.NewProgram(InitialModel(v, cfg))
-	_, err := p.Run()
-	return err
+	p := tea.NewProgram(m, tea.WithAltScreen())
+	if _, err := p.Run(); err != nil {
+		return err
+	}
+	return nil
 }
